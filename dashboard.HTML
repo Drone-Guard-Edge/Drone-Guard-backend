@@ -1,0 +1,600 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>DroneGuard Edge — Sprint 1</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans+KR:wght@300;400;500&display=swap" rel="stylesheet">
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --bg:        #f5f6f8;
+    --bg2:       #ffffff;
+    --bg3:       #f0f1f4;
+    --border:    rgba(0,0,0,0.08);
+    --border2:   rgba(0,0,0,0.13);
+    --text:      #1a1d24;
+    --text2:     #5a6070;
+    --text3:     #9aa0ae;
+    --red:       #d63030;
+    --red-dim:   rgba(214,48,48,0.10);
+    --amber:     #c47a10;
+    --amber-dim: rgba(196,122,16,0.10);
+    --green:     #2a9157;
+    --green-dim: rgba(42,145,87,0.10);
+    --mono: 'IBM Plex Mono', monospace;
+    --sans: 'IBM Plex Sans KR', sans-serif;
+  }
+
+  html, body { height: 100%; background: var(--bg); color: var(--text); font-family: var(--sans); font-size: 14px; line-height: 1.5; }
+
+  /* ── layout ── */
+  .shell { display: grid; grid-template-rows: 52px 1fr; height: 100vh; }
+
+  /* ── topbar ── */
+  .topbar {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 0 20px; border-bottom: 1px solid var(--border);
+    background: var(--bg2);
+  }
+  .topbar-left { display: flex; align-items: center; gap: 12px; }
+  .pulse-dot {
+    width: 8px; height: 8px; border-radius: 50%; background: var(--red);
+    box-shadow: 0 0 0 0 rgba(232,64,58,0.5);
+    animation: pulse 2s ease-in-out infinite;
+  }
+  @keyframes pulse {
+    0%,100% { box-shadow: 0 0 0 0 rgba(232,64,58,0.5); }
+    50%      { box-shadow: 0 0 0 6px rgba(232,64,58,0); }
+  }
+  .topbar-title { font-family: var(--mono); font-size: 13px; font-weight: 500; letter-spacing: 0.04em; color: var(--text); }
+  .topbar-divider { width: 1px; height: 16px; background: var(--border2); }
+  .topbar-sub { font-family: var(--mono); font-size: 11px; color: var(--text3); letter-spacing: 0.06em; }
+  .topbar-right { display: flex; align-items: center; gap: 16px; }
+  .conn-status { display: flex; align-items: center; gap: 6px; font-family: var(--mono); font-size: 11px; }
+  .conn-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--green); }
+  .conn-text { color: var(--green); }
+  .topbar-clock { font-family: var(--mono); font-size: 12px; color: var(--text2); min-width: 80px; text-align: right; }
+
+  /* ── main ── */
+  .main { display: grid; grid-template-columns: 1fr 320px; overflow: hidden; }
+
+  /* ── left panel ── */
+  .left { display: flex; flex-direction: column; padding: 16px; gap: 14px; overflow-y: auto; }
+
+  /* ── metric strip ── */
+  .metric-strip { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
+  .metric-card {
+    background: var(--bg2); border: 1px solid var(--border);
+    border-radius: 6px; padding: 14px 16px;
+  }
+  .metric-card.active-high { border-color: rgba(232,64,58,0.35); background: rgba(232,64,58,0.05); }
+  .metric-lbl { font-family: var(--mono); font-size: 10px; color: var(--text3); letter-spacing: 0.08em; text-transform: uppercase; margin-bottom: 8px; }
+  .metric-val { font-family: var(--mono); font-size: 22px; font-weight: 500; color: var(--text); }
+  .metric-val.high { color: var(--red); }
+  .metric-conf-row { display: flex; align-items: center; gap: 8px; margin-top: 6px; }
+  .conf-track { flex: 1; height: 3px; background: var(--border2); border-radius: 2px; overflow: hidden; }
+  .conf-fill { height: 100%; border-radius: 2px; transition: width 0.4s ease; }
+  .conf-fill.high   { background: var(--red); }
+  .conf-fill.medium { background: var(--amber); }
+  .conf-fill.low    { background: var(--green); }
+  .conf-num { font-family: var(--mono); font-size: 11px; color: var(--text2); }
+
+  /* ── section header ── */
+  .section-header {
+    display: flex; align-items: center; justify-content: space-between;
+    font-family: var(--mono); font-size: 10px; color: var(--text3);
+    letter-spacing: 0.1em; text-transform: uppercase;
+  }
+  .section-header span { color: var(--text3); }
+
+  /* ── bbox canvas card ── */
+  .bbox-card {
+    background: var(--bg2); border: 1px solid var(--border);
+    border-radius: 6px; overflow: hidden; flex: 1; min-height: 300px;
+    display: flex; flex-direction: column;
+  }
+  .bbox-card-header {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 10px 14px; border-bottom: 1px solid var(--border);
+    font-family: var(--mono); font-size: 10px; color: var(--text3);
+  }
+  .bbox-card-header-right { display: flex; align-items: center; gap: 12px; }
+  .sensor-tag {
+    font-family: var(--mono); font-size: 10px; letter-spacing: 0.06em;
+    padding: 2px 8px; border-radius: 3px;
+    background: rgba(232,64,58,0.12); color: var(--red); border: 1px solid rgba(232,64,58,0.25);
+  }
+  .frame-tag { color: var(--text3); }
+  .bbox-viewport { flex: 1; background: #07090c; position: relative; overflow: hidden; cursor: crosshair; }
+
+  /* scanline overlay */
+  .bbox-viewport::before {
+    content: ''; position: absolute; inset: 0; pointer-events: none; z-index: 1;
+    background: repeating-linear-gradient(0deg, transparent, transparent 2px, rgba(0,0,0,0.03) 2px, rgba(0,0,0,0.03) 4px);
+  }
+  .grid-overlay {
+    position: absolute; inset: 0; pointer-events: none; z-index: 0;
+    background-image:
+      linear-gradient(var(--border) 1px, transparent 1px),
+      linear-gradient(90deg, var(--border) 1px, transparent 1px);
+    background-size: 48px 48px;
+  }
+  .crosshair-h { position: absolute; top: 50%; left: 0; right: 0; height: 1px; background: rgba(255,255,255,0.04); z-index: 0; }
+  .crosshair-v { position: absolute; left: 50%; top: 0; bottom: 0; width: 1px; background: rgba(255,255,255,0.04); z-index: 0; }
+
+  /* bbox box */
+  .bbox-box {
+    position: absolute; z-index: 10;
+    border: 1.5px solid var(--red);
+    border-radius: 2px;
+    transition: all 0.15s ease;
+  }
+  .bbox-box::before, .bbox-box::after,
+  .bbox-box .c1, .bbox-box .c2 {
+    content: ''; position: absolute; width: 8px; height: 8px;
+  }
+  .bbox-box::before { top: -2px; left: -2px; border-top: 2px solid #ff7070; border-left: 2px solid #ff7070; }
+  .bbox-box::after  { top: -2px; right: -2px; border-top: 2px solid #ff7070; border-right: 2px solid #ff7070; }
+  .bbox-box .c1     { bottom: -2px; left: -2px; border-bottom: 2px solid #ff7070; border-left: 2px solid #ff7070; }
+  .bbox-box .c2     { bottom: -2px; right: -2px; border-bottom: 2px solid #ff7070; border-right: 2px solid #ff7070; }
+  .bbox-scan {
+    position: absolute; left: 0; right: 0; height: 1px;
+    background: linear-gradient(90deg, transparent 0%, rgba(232,64,58,0.7) 50%, transparent 100%);
+    animation: bbox-scan 1.6s ease-in-out infinite;
+  }
+  @keyframes bbox-scan { 0%,100% { top: 0; opacity: 0; } 10% { opacity: 1; } 90% { opacity: 1; } 50% { top: 100%; } }
+  .bbox-fill { position: absolute; inset: 0; background: rgba(232,64,58,0.05); }
+  .bbox-label-top {
+    position: absolute; top: -22px; left: -1px;
+    font-family: var(--mono); font-size: 10px; color: var(--red);
+    background: rgba(7,9,12,0.85); padding: 2px 6px; border-radius: 2px; white-space: nowrap;
+    border: 1px solid rgba(232,64,58,0.25);
+  }
+  .bbox-label-bot {
+    position: absolute; bottom: -19px; left: -1px;
+    font-family: var(--mono); font-size: 10px; color: var(--text3); white-space: nowrap;
+  }
+
+  /* bottom meta row */
+  .bbox-meta {
+    padding: 8px 14px; border-top: 1px solid var(--border);
+    display: flex; align-items: center; gap: 16px;
+    font-family: var(--mono); font-size: 10px; color: var(--text3);
+  }
+  .bbox-meta span { color: var(--text2); }
+
+  /* ── right panel ── */
+  .right {
+    border-left: 1px solid var(--border);
+    display: flex; flex-direction: column; overflow: hidden;
+    background: var(--bg2);
+  }
+  .panel-header {
+    padding: 12px 16px; border-bottom: 1px solid var(--border);
+    font-family: var(--mono); font-size: 10px; color: var(--text3);
+    letter-spacing: 0.1em; text-transform: uppercase;
+    display: flex; align-items: center; justify-content: space-between;
+  }
+  .panel-count { color: var(--text2); }
+
+  .feed-list { flex: 1; overflow-y: auto; }
+  .feed-list::-webkit-scrollbar { width: 4px; }
+  .feed-list::-webkit-scrollbar-track { background: transparent; }
+  .feed-list::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 2px; }
+
+  .feed-item {
+    display: flex; align-items: flex-start; gap: 10px;
+    padding: 11px 16px; border-bottom: 1px solid var(--border);
+    cursor: pointer; transition: background 0.15s;
+  }
+  .feed-item:hover { background: var(--bg3); }
+  .feed-item.active { background: rgba(232,64,58,0.06); border-left: 2px solid var(--red); padding-left: 14px; }
+
+  .feed-dot { width: 6px; height: 6px; border-radius: 50%; margin-top: 5px; flex-shrink: 0; }
+  .feed-dot.HIGH   { background: var(--red); }
+  .feed-dot.MEDIUM { background: var(--amber); }
+  .feed-dot.LOW    { background: var(--green); }
+
+  .feed-body { flex: 1; min-width: 0; }
+  .feed-row1 { display: flex; align-items: center; gap: 5px; margin-bottom: 3px; }
+
+  .risk-badge {
+    font-family: var(--mono); font-size: 10px; font-weight: 500;
+    padding: 1px 6px; border-radius: 2px; letter-spacing: 0.04em;
+  }
+  .risk-badge.HIGH   { background: var(--red-dim); color: var(--red); border: 1px solid rgba(232,64,58,0.25); }
+  .risk-badge.MEDIUM { background: var(--amber-dim); color: var(--amber); border: 1px solid rgba(232,160,32,0.25); }
+  .risk-badge.LOW    { background: var(--green-dim); color: var(--green); border: 1px solid rgba(58,170,110,0.25); }
+
+  .sensor-badge-sm {
+    font-family: var(--mono); font-size: 9px; color: var(--text3);
+    background: var(--bg3); padding: 1px 5px; border-radius: 2px;
+    border: 1px solid var(--border);
+  }
+  .feed-conf-row { display: flex; align-items: center; gap: 6px; }
+  .feed-conf-track { flex: 1; height: 2px; background: var(--border); border-radius: 1px; overflow: hidden; }
+  .feed-conf-fill { height: 100%; border-radius: 1px; }
+  .feed-conf-fill.HIGH   { background: var(--red); }
+  .feed-conf-fill.MEDIUM { background: var(--amber); }
+  .feed-conf-fill.LOW    { background: var(--green); }
+  .feed-conf-num { font-family: var(--mono); font-size: 10px; color: var(--text2); }
+  .feed-time { font-family: var(--mono); font-size: 10px; color: var(--text3); white-space: nowrap; margin-top: 1px; }
+
+  /* ── save status bar ── */
+  .save-bar {
+    padding: 8px 16px; border-top: 1px solid var(--border);
+    display: flex; align-items: center; justify-content: space-between;
+    font-family: var(--mono); font-size: 10px; color: var(--text3);
+  }
+  .save-bar-left { display: flex; align-items: center; gap: 8px; }
+  .save-indicator { width: 6px; height: 6px; border-radius: 50%; background: var(--text3); }
+  .save-indicator.saving { background: var(--amber); animation: blink 0.5s ease infinite; }
+  .save-indicator.saved  { background: var(--green); }
+  @keyframes blink { 0%,100% { opacity: 1; } 50% { opacity: 0.3; } }
+  .save-progress-wrap { flex: 1; height: 2px; background: var(--border); border-radius: 1px; overflow: hidden; margin: 0 8px; }
+  .save-progress-fill { height: 100%; background: var(--green); border-radius: 1px; transition: width 1s linear; }
+
+  /* ── no detection state ── */
+  .no-detect {
+    position: absolute; inset: 0; display: flex; flex-direction: column;
+    align-items: center; justify-content: center; gap: 8px; z-index: 5;
+  }
+  .no-detect-icon { font-size: 32px; color: var(--text3); }
+  .no-detect-text { font-family: var(--mono); font-size: 11px; color: var(--text3); letter-spacing: 0.06em; }
+</style>
+</head>
+<body>
+<div class="shell">
+
+  <!-- topbar -->
+  <header class="topbar">
+    <div class="topbar-left">
+      <div class="pulse-dot" id="pulseDot"></div>
+      <span class="topbar-title">DRONEGUARD EDGE</span>
+      <div class="topbar-divider"></div>
+      <span class="topbar-sub">SPRINT 1 · 위험도 모니터</span>
+    </div>
+    <div class="topbar-right">
+      <div class="conn-status">
+        <div class="conn-dot" id="connDot"></div>
+        <span class="conn-text" id="connText">DeepX 연결됨</span>
+      </div>
+      <div class="topbar-divider"></div>
+      <div class="topbar-clock" id="clock">--:--:--</div>
+    </div>
+  </header>
+
+  <!-- main -->
+  <div class="main">
+
+    <!-- left -->
+    <div class="left">
+
+      <!-- metric strip -->
+      <div class="metric-strip">
+        <div class="metric-card active-high" id="riskCard">
+          <div class="metric-lbl">현재 위험도</div>
+          <div class="metric-val high" id="riskVal">HIGH</div>
+          <div class="metric-conf-row">
+            <div class="conf-track"><div class="conf-fill high" id="riskConfFill" style="width:91%"></div></div>
+            <div class="conf-num" id="riskConfNum">0.91</div>
+          </div>
+        </div>
+        <div class="metric-card">
+          <div class="metric-lbl">탐지 수 (세션)</div>
+          <div class="metric-val" id="detectCount">0</div>
+        </div>
+        <div class="metric-card">
+          <div class="metric-lbl">마지막 수신</div>
+          <div class="metric-val" style="font-size:15px; padding-top:4px" id="lastRecv">--:--:--</div>
+        </div>
+      </div>
+
+      <!-- bbox section -->
+      <div class="section-header">
+        <span>현재 탐지 상태</span>
+        <span id="frameTag">frame —</span>
+      </div>
+
+      <div class="bbox-card">
+        <div class="bbox-card-header">
+          <span>EO-IR FUSION · LIVE</span>
+          <div class="bbox-card-header-right">
+            <span class="sensor-tag" id="sensorTag">FUSION</span>
+            <span class="frame-tag" id="frameTagInner">—</span>
+          </div>
+        </div>
+
+        <div class="bbox-viewport" id="viewport" style="background:#e8edf2;">
+          <div class="grid-overlay"></div>
+          <div class="crosshair-h"></div>
+          <div class="crosshair-v"></div>
+
+          <!-- bbox box (hidden until detection) -->
+          <div class="bbox-box" id="bboxBox" style="display:none">
+            <div class="bbox-fill"></div>
+            <div class="bbox-scan"></div>
+            <div class="bbox-label-top" id="bboxLabelTop">drone · HIGH</div>
+            <div class="bbox-label-bot" id="bboxLabelBot">conf 0.91 · x:0 y:0</div>
+            <div class="c1"></div><div class="c2"></div>
+          </div>
+
+          <!-- no detection -->
+          <div class="no-detect" id="noDetect">
+            <div class="no-detect-icon">⊙</div>
+            <div class="no-detect-text">탐지 대기 중...</div>
+          </div>
+        </div>
+
+        <div class="bbox-meta" id="bboxMeta">
+          <span>timestamp</span> <span id="metaTs">—</span>
+          &nbsp;·&nbsp;
+          <span>bbox</span> <span id="metaBbox">—</span>
+          &nbsp;·&nbsp;
+          <span>size</span> <span id="metaSize">—</span>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- right panel -->
+    <div class="right">
+      <div class="panel-header">
+        <span>탐지 피드</span>
+        <span class="panel-count" id="feedCount">0 건</span>
+      </div>
+
+      <div class="feed-list" id="feedList"></div>
+
+      <!-- save status bar -->
+      <div class="save-bar">
+        <div class="save-bar-left">
+          <div class="save-indicator" id="saveIndicator"></div>
+          <span id="saveLabel">저장 대기 중</span>
+        </div>
+        <div class="save-progress-wrap">
+          <div class="save-progress-fill" id="saveProgress" style="width:0%"></div>
+        </div>
+        <span id="saveCountdown">30s</span>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<script>
+/* ── clock ── */
+function updateClock() {
+  const now = new Date();
+  document.getElementById('clock').textContent =
+    now.toTimeString().slice(0,8);
+}
+setInterval(updateClock, 1000);
+updateClock();
+
+/* ── state ── */
+const SAVE_INTERVAL = 30;
+let detections = [];
+let sessionCount = 0;
+let saveTimer = SAVE_INTERVAL;
+let isSaving = false;
+
+/* ── risk logic ── */
+function getRisk(conf) {
+  if (conf >= 0.85) return 'HIGH';
+  if (conf >= 0.60) return 'MEDIUM';
+  if (conf >= 0.30) return 'LOW';
+  return 'NONE';
+}
+function riskColor(r) {
+  return { HIGH: '#e8403a', MEDIUM: '#e8a020', LOW: '#3aaa6e', NONE: '#454c5a' }[r];
+}
+
+/* ── receive detection ── */
+function onDetection(event) {
+  sessionCount++;
+  detections.push(event);
+
+  const risk = getRisk(event.confidence);
+  updateMetrics(event, risk);
+  updateBbox(event, risk);
+  addFeedItem(event, risk);
+}
+
+function updateMetrics(event, risk) {
+  // risk card
+  const riskVal = document.getElementById('riskVal');
+  const riskCard = document.getElementById('riskCard');
+  const riskConfFill = document.getElementById('riskConfFill');
+  const riskConfNum  = document.getElementById('riskConfNum');
+
+  riskVal.textContent = risk;
+  riskVal.className = 'metric-val ' + (risk === 'HIGH' ? 'high' : risk === 'MEDIUM' ? 'medium' : 'low');
+  riskVal.style.color = riskColor(risk);
+  riskCard.className = 'metric-card ' + (risk === 'HIGH' ? 'active-high' : '');
+  riskCard.style.borderColor = risk === 'HIGH' ? 'rgba(232,64,58,0.35)' : risk === 'MEDIUM' ? 'rgba(232,160,32,0.3)' : 'rgba(58,170,110,0.3)';
+  riskCard.style.background  = risk === 'HIGH' ? 'rgba(232,64,58,0.05)' : risk === 'MEDIUM' ? 'rgba(232,160,32,0.04)' : 'rgba(58,170,110,0.04)';
+  riskConfFill.style.width = Math.round(event.confidence * 100) + '%';
+  riskConfFill.className = 'conf-fill ' + risk.toLowerCase();
+  riskConfNum.textContent = event.confidence.toFixed(2);
+
+  // count & last recv
+  document.getElementById('detectCount').textContent = sessionCount;
+  document.getElementById('lastRecv').textContent = new Date().toTimeString().slice(0,8);
+}
+
+function updateBbox(event, risk) {
+  const vp = document.getElementById('viewport');
+  const box = document.getElementById('bboxBox');
+  const noDetect = document.getElementById('noDetect');
+  const b = event.bbox;
+
+  // scale bbox to viewport percentage
+  const vpW = vp.clientWidth  || 600;
+  const vpH = vp.clientHeight || 300;
+  const srcW = 640, srcH = 480; // assumed source resolution
+
+  const scaleX = vpW / srcW;
+  const scaleY = vpH / srcH;
+
+  box.style.left   = Math.round(b.x * scaleX) + 'px';
+  box.style.top    = Math.round(b.y * scaleY) + 'px';
+  box.style.width  = Math.round(b.w * scaleX) + 'px';
+  box.style.height = Math.round(b.h * scaleY) + 'px';
+  box.style.borderColor = riskColor(risk);
+  box.style.display = 'block';
+  noDetect.style.display = 'none';
+
+  document.getElementById('bboxLabelTop').textContent = `drone · ${risk}`;
+  document.getElementById('bboxLabelTop').style.color = riskColor(risk);
+  document.getElementById('bboxLabelTop').style.borderColor = riskColor(risk) + '40';
+  document.getElementById('bboxLabelBot').textContent = `conf ${event.confidence.toFixed(2)} · x:${b.x} y:${b.y}`;
+
+  // sensor tag
+  const sTag = document.getElementById('sensorTag');
+  sTag.textContent = event.sensor;
+  sTag.style.color = riskColor(risk);
+  sTag.style.background = riskColor(risk) + '1a';
+  sTag.style.borderColor = riskColor(risk) + '40';
+
+  document.getElementById('frameTagInner').textContent = '#' + event.frame_id;
+  document.getElementById('frameTag').textContent = 'frame #' + event.frame_id;
+
+  // meta row
+  document.getElementById('metaTs').textContent = event.timestamp.slice(11,23);
+  document.getElementById('metaBbox').textContent = `x:${b.x} y:${b.y}`;
+  document.getElementById('metaSize').textContent = `${b.w}×${b.h}`;
+}
+
+function addFeedItem(event, risk) {
+  const list = document.getElementById('feedList');
+  const time = event.timestamp.slice(11,19);
+  const pct  = Math.round(event.confidence * 100);
+
+  // deactivate previous active
+  list.querySelectorAll('.feed-item').forEach(el => el.classList.remove('active'));
+
+  const item = document.createElement('div');
+  item.className = 'feed-item active';
+  item.innerHTML = `
+    <div class="feed-dot ${risk}"></div>
+    <div class="feed-body">
+      <div class="feed-row1">
+        <span class="risk-badge ${risk}">${risk}</span>
+        <span class="sensor-badge-sm">${event.sensor}</span>
+      </div>
+      <div class="feed-conf-row">
+        <div class="feed-conf-track">
+          <div class="feed-conf-fill ${risk}" style="width:${pct}%"></div>
+        </div>
+        <span class="feed-conf-num">${event.confidence.toFixed(2)}</span>
+      </div>
+    </div>
+    <div class="feed-time">${time}</div>
+  `;
+  list.insertBefore(item, list.firstChild);
+
+  document.getElementById('feedCount').textContent = sessionCount + ' 건';
+}
+
+/* ── save timer ── */
+function updateSaveBar() {
+  const progress = document.getElementById('saveProgress');
+  const countdown = document.getElementById('saveCountdown');
+  const indicator = document.getElementById('saveIndicator');
+  const label = document.getElementById('saveLabel');
+  const pct = Math.round(((SAVE_INTERVAL - saveTimer) / SAVE_INTERVAL) * 100);
+
+  progress.style.width = pct + '%';
+  countdown.textContent = saveTimer + 's';
+
+  if (!isSaving) {
+    indicator.className = 'save-indicator';
+    label.textContent = '다음 저장까지';
+  }
+}
+
+function doSave() {
+  isSaving = true;
+  const indicator = document.getElementById('saveIndicator');
+  const label = document.getElementById('saveLabel');
+  indicator.className = 'save-indicator saving';
+  label.textContent = 'DB 저장 중...';
+
+  // 실제 서버 연결 시 여기서 fetch('/api/save-snapshot') 호출
+  const snapshot = {
+    saved_at: new Date().toISOString(),
+    detection_count: detections.length,
+    data: detections.slice()
+  };
+  console.log('[DroneGuard] snapshot saved:', snapshot);
+
+  setTimeout(() => {
+    detections = [];
+    isSaving = false;
+    indicator.className = 'save-indicator saved';
+    label.textContent = '저장 완료';
+    document.getElementById('saveProgress').style.width = '0%';
+    setTimeout(() => { label.textContent = '다음 저장까지'; }, 2000);
+  }, 600);
+}
+
+setInterval(() => {
+  if (isSaving) return;
+  saveTimer--;
+  if (saveTimer <= 0) {
+    doSave();
+    saveTimer = SAVE_INTERVAL;
+  }
+  updateSaveBar();
+}, 1000);
+updateSaveBar();
+
+/* ── mock feed (DeepX 연결 전 테스트용) ── */
+const mockEvents = [
+  { timestamp:'2026-05-14T10:23:01.123Z', frame_id:402, sensor:'FUSION', confidence:0.91, bbox:{x:120,y:85,w:90,h:68} },
+  { timestamp:'2026-05-14T10:23:03.456Z', frame_id:405, sensor:'EO',     confidence:0.67, bbox:{x:200,y:130,w:70,h:55} },
+  { timestamp:'2026-05-14T10:23:06.789Z', frame_id:410, sensor:'IR',     confidence:0.38, bbox:{x:310,y:60,w:55,h:42}  },
+  { timestamp:'2026-05-14T10:23:10.001Z', frame_id:418, sensor:'FUSION', confidence:0.72, bbox:{x:160,y:200,w:80,h:60} },
+  { timestamp:'2026-05-14T10:23:14.220Z', frame_id:425, sensor:'EO',     confidence:0.85, bbox:{x:90,y:150,w:95,h:72}  },
+];
+
+/*
+let mockIdx = 0;
+function runMock() {
+  if (mockIdx < mockEvents.length) {
+    onDetection(mockEvents[mockIdx++]);
+    setTimeout(runMock, 2800);
+  }
+}
+setTimeout(runMock, 800);
+*/
+
+/* ── WebSocket 연결 (실제 서버 연결 시 주석 해제) ── */
+
+const ws = new WebSocket('ws://localhost:8000/ws/browser');
+ws.onopen = () => {
+  document.getElementById('connDot').style.background = '#3aaa6e';
+  document.getElementById('connText').textContent = 'DeepX 연결됨';
+  document.getElementById('connText').style.color = '#3aaa6e';
+};
+ws.onclose = () => {
+  document.getElementById('connDot').style.background = '#e8403a';
+  document.getElementById('connText').textContent = '연결 끊김';
+  document.getElementById('connText').style.color = '#e8403a';
+  document.getElementById('pulseDot').style.background = '#454c5a';
+  document.getElementById('pulseDot').style.animation = 'none';
+};
+ws.onmessage = (e) => {
+  const msg = JSON.parse(e.data);
+  if (msg.type === 'detection' && msg.payload) {
+    onDetection(msg.payload);
+  }
+};
+
+</script>
+</body>
+</html>
